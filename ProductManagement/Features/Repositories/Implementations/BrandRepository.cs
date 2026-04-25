@@ -1,11 +1,11 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using ProductManagement.Features.Data;
 using ProductManagement.Features.Data.Models;
 using ProductManagement.Features.Repositories.Interfaces;
 
 namespace ProductManagement.Features.Repositories.Implementations
 {
-    public class BrandRepository : IGenericRepository<Brand>, IBrandRepository
+    public class BrandRepository : GenericRepository<Brand>, IBrandRepository
     {
         public BrandRepository(AppDbContext context) : base(context) { }
 

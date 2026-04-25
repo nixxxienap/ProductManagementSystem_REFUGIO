@@ -1,0 +1,195 @@
+@page "/brands"
+@inject IBrandService BrandService
+
+<PageTitle>Brands</PageTitle>
+
+@if (!string.IsNullOrEmpty(alertMessage))
+{
+    <div class="alert @(alertIsSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show">
+        @alertMessage
+        <button type="button" class="btn-close" @onclick="() => alertMessage = string.Empty"></button>
+    </div>
+}
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="card-title mb-0 fw-bold">Brands</span>
+        <button class="btn btn-primary btn-sm" @onclick="OpenAddModal">+ Add Brand</button>
+    </div>
+
+    <div class="card-body">
+        <div class="mb-3">
+            <input class="form-control" placeholder="Search brands..."
+                   @bind="searchTerm" @bind:event="oninput" @onkeyup="FilterBrands" />
+        </div>
+
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (pagedBrands.Any())
+                {
+                    @foreach (var brand in pagedBrands)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@brand.Name</td>
+                            <td class="text-muted">@brand.Description</td>
+                            <td>
+                                <span class="badge @(brand.IsActive ? "bg-success" : "bg-danger")">
+                                    @(brand.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td class="text-muted">@brand.CreatedAt.ToString("MMM d, yyyy")</td>
+                            <td>
+                                <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => OpenEditModal(brand)">Edit</button>
+                                <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteBrand(brand.Id)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr><td colspan="5" class="text-center text-muted">No brands found.</td></tr>
+                }
+            </tbody>
+        </table>
+
+        @if (totalPages > 1)
+        {
+            <nav>
+                <ul class="pagination justify-content-center">
+                    @for (int i = 1; i <= totalPages; i++)
+                    {
+                        var pageNum = i;
+                        <li class="page-item @(currentPage == pageNum ? "active" : "")">
+                            <button class="page-link" @onclick="() => GoToPage(pageNum)">@pageNum</button>
+                        </li>
+                    }
+                </ul>
+            </nav>
+        }
+    </div>
+</div>
+
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(isEditing ? "Edit Brand" : "Add Brand")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Brand Name</label>
+                        <input class="form-control" @bind="formBrand.Name" placeholder="e.g. Nike" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <input class="form-control" @bind="formBrand.Description" placeholder="Short description..." />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" @bind="formBrand.IsActive">
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveBrand">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Brand> allBrands = new();
+    private List<Brand> filtered = new();
+    private List<Brand> pagedBrands = new();
+
+    private string searchTerm = string.Empty;
+    private int currentPage = 1;
+    private int pageSize = 8;
+    private int totalPages = 1;
+
+    private bool showModal = false;
+    private bool isEditing = false;
+    private Brand formBrand = new();
+
+    private string alertMessage = string.Empty;
+    private bool alertIsSuccess = true;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        allBrands = (await BrandService.GetAllBrandsAsync()).ToList();
+        FilterBrands();
+    }
+
+    private void FilterBrands()
+    {
+        filtered = string.IsNullOrWhiteSpace(searchTerm)
+            ? allBrands
+            : allBrands.Where(b => b.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        totalPages = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)pageSize));
+        currentPage = Math.Min(currentPage, totalPages);
+        pagedBrands = filtered.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
+    }
+
+    private void GoToPage(int page) { currentPage = page; FilterBrands(); }
+
+    private void OpenAddModal()
+    {
+        formBrand = new Brand { IsActive = true };
+        isEditing = false;
+        showModal = true;
+    }
+
+    private void OpenEditModal(Brand brand)
+    {
+        formBrand = new Brand
+        {
+            Id = brand.Id,
+            Name = brand.Name,
+            Description = brand.Description,
+            IsActive = brand.IsActive,
+            CreatedAt = brand.CreatedAt
+        };
+        isEditing = true;
+        showModal = true;
+    }
+
+    private async Task SaveBrand()
+    {
+        var result = isEditing
+            ? await BrandService.UpdateBrandAsync(formBrand)
+            : await BrandService.CreateBrandAsync(formBrand);
+
+        alertMessage = result.Message;
+        alertIsSuccess = result.Success;
+        if (result.Success) { CloseModal(); await LoadData(); }
+    }
+
+    private async Task DeleteBrand(int id)
+    {
+        var result = await BrandService.DeleteBrandAsync(id);
+        alertMessage = result.Message;
+        alertIsSuccess = result.Success;
+        if (result.Success) await LoadData();
+    }
+
+    private void CloseModal() => showModal = false;
+}

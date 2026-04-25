@@ -1,0 +1,208 @@
+@page "/suppliers"
+@using YourApp.Features.Data.Models
+@inject ISupplierService SupplierService
+
+<PageTitle>Suppliers</PageTitle>
+
+@if (!string.IsNullOrEmpty(alertMessage))
+{
+    <div class="alert @(alertIsSuccess ? "alert-success" : "alert-danger")">
+        @alertMessage
+    </div>
+}
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Suppliers</span>
+        <button class="btn btn-primary btn-sm" @onclick="OpenAddModal">+ Add Supplier</button>
+    </div>
+
+    <div class="search-bar">
+        <svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="6.5" cy="6.5" r="4.5" />
+            <path d="m10.5 10.5 3 3" />
+        </svg>
+        <input class="search-input" placeholder="Search suppliers..."
+               @bind="searchTerm" @bind:event="oninput" @onkeyup="FilterSuppliers" />
+    </div>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Company</th>
+                <th>Contact Person</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var supplier in pagedSuppliers)
+            {
+                <tr>
+                    <td class="fw-500">@supplier.Name</td>
+                    <td>@supplier.ContactPerson</td>
+                    <td class="text-muted">@supplier.Email</td>
+                    <td class="text-muted">@supplier.Phone</td>
+                    <td>
+                        <span class="badge @(supplier.IsActive ? "badge-success" : "badge-danger")">
+                            @(supplier.IsActive ? "Active" : "Inactive")
+                        </span>
+                    </td>
+                    <td>
+                        <div class="btn-actions">
+                            <button class="btn btn-sm" @onclick="() => OpenEditModal(supplier)">Edit</button>
+                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteSupplier(supplier.Id)">Del</button>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="pagination">
+        @for (int i = 1; i <= totalPages; i++)
+        {
+            var pageNum = i;
+            <button class="page-btn @(currentPage == pageNum ? "active" : "")"
+                    @onclick="() => GoToPage(pageNum)">
+                @pageNum
+            </button>
+        }
+    </div>
+</div>
+
+@if (showModal)
+{
+    <div class="modal-overlay" @onclick="CloseModal">
+        <div class="modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span class="modal-title">@(isEditing ? "Edit Supplier" : "Add Supplier")</span>
+                <button class="modal-close" @onclick="CloseModal">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-grid">
+                    <div class="form-group full">
+                        <label class="form-label">Company Name</label>
+                        <input class="form-control" @bind="formSupplier.Name" placeholder="e.g. TechWorld Inc." />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Contact Person</label>
+                        <input class="form-control" @bind="formSupplier.ContactPerson" placeholder="Full name" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input class="form-control" type="email" @bind="formSupplier.Email" placeholder="email@example.com" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone</label>
+                        <input class="form-control" @bind="formSupplier.Phone" placeholder="09XXXXXXXXX" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select class="form-control" @bind="formSupplier.IsActive">
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                        </select>
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label">Address</label>
+                        <input class="form-control" @bind="formSupplier.Address" placeholder="Street, City, Province" />
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" @onclick="CloseModal">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveSupplier">Save Supplier</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Supplier> allSuppliers = new();
+    private List<Supplier> filtered = new();
+    private List<Supplier> pagedSuppliers = new();
+
+    private string searchTerm = string.Empty;
+    private int currentPage = 1;
+    private int pageSize = 8;
+    private int totalPages = 1;
+
+    private bool showModal = false;
+    private bool isEditing = false;
+    private Supplier formSupplier = new();
+
+    private string alertMessage = string.Empty;
+    private bool alertIsSuccess = true;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        allSuppliers = (await SupplierService.GetAllSuppliersAsync()).ToList();
+        FilterSuppliers();
+    }
+
+    private void FilterSuppliers()
+    {
+        filtered = string.IsNullOrWhiteSpace(searchTerm)
+            ? allSuppliers
+            : allSuppliers.Where(s =>
+                s.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                (s.ContactPerson?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (s.Email?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+              ).ToList();
+
+        totalPages = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)pageSize));
+        currentPage = Math.Min(currentPage, totalPages);
+        pagedSuppliers = filtered.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
+    }
+
+    private void GoToPage(int page) { currentPage = page; FilterSuppliers(); }
+
+    private void OpenAddModal()
+    {
+        formSupplier = new Supplier { IsActive = true };
+        isEditing = false;
+        showModal = true;
+    }
+
+    private void OpenEditModal(Supplier supplier)
+    {
+        formSupplier = new Supplier
+        {
+            Id = supplier.Id,
+            Name = supplier.Name,
+            ContactPerson = supplier.ContactPerson,
+            Email = supplier.Email,
+            Phone = supplier.Phone,
+            Address = supplier.Address,
+            IsActive = supplier.IsActive
+        };
+        isEditing = true;
+        showModal = true;
+    }
+
+    private async Task SaveSupplier()
+    {
+        var result = isEditing
+            ? await SupplierService.UpdateSupplierAsync(formSupplier)
+            : await SupplierService.CreateSupplierAsync(formSupplier);
+
+        alertMessage = result.Message;
+        alertIsSuccess = result.Success;
+        if (result.Success) { CloseModal(); await LoadData(); }
+    }
+
+    private async Task DeleteSupplier(int id)
+    {
+        var result = await SupplierService.DeleteSupplierAsync(id);
+        alertMessage = result.Message;
+        alertIsSuccess = result.Success;
+        if (result.Success) await LoadData();
+    }
+
+    private void CloseModal() => showModal = false;
+}

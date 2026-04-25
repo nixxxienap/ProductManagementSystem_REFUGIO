@@ -1,0 +1,130 @@
+@page "/"
+@inject IProductService ProductService
+@inject IBrandService BrandService
+@inject ICategoryService CategoryService
+@inject ISupplierService SupplierService
+
+<PageTitle>Dashboard</PageTitle>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Products</div>
+        <div class="stat-value">@totalProducts</div>
+        <div class="stat-sub">Across all categories</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Brands</div>
+        <div class="stat-value">@totalBrands</div>
+        <div class="stat-sub">Active brands</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Categories</div>
+        <div class="stat-value">@totalCategories</div>
+        <div class="stat-sub">Active categories</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Suppliers</div>
+<div class="stat-value">@totalSuppliers</div>
+        <div class="stat-sub">Active suppliers</div>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Low Stock Products</span>
+            <span class="badge badge-danger">@lowStockProducts.Count items</span>
+        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th>Stock</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var product in lowStockProducts)
+                {
+                    <tr>
+                        <td class="fw-500">@product.Name</td>
+                        <td>@product.Stock</td>
+                        <td>
+                            @if (product.Stock <= 3)
+                            {
+                                <span class="badge badge-danger">Critical</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-warn">Low</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Recent Activity</span>
+        </div>
+        <div class="activity-list">
+            <div class="activity-item">
+                <div class="avatar" style="background:#eaf3de;color:#3b6d11;">AD</div>
+                <div>
+                    <div class="activity-text">Added <strong>Sony WH-1000XM5</strong></div>
+                    <div class="activity-time">2 minutes ago</div>
+                </div>
+            </div>
+            <div class="activity-item">
+                <div class="avatar" style="background:#e6f1fb;color:#185fa5;">MG</div>
+                <div>
+                    <div class="activity-text">Updated stock for <strong>USB-C Hub</strong></div>
+                    <div class="activity-time">1 hour ago</div>
+                </div>
+            </div>
+            <div class="activity-item">
+                <div class="avatar" style="background:#faeeda;color:#854f0b;">JD</div>
+                <div>
+                    <div class="activity-text">Added supplier <strong>TechWorld Inc.</strong></div>
+                    <div class="activity-time">3 hours ago</div>
+                </div>
+            </div>
+            <div class="activity-item">
+                <div class="avatar" style="background:#eeedfe;color:#534ab7;">RL</div>
+                <div>
+                    <div class="activity-text">Deleted brand <strong>OldBrand Co.</strong></div>
+                    <div class="activity-time">Yesterday</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private int totalProducts;
+    private int totalBrands;
+    private int totalCategories;
+    private int totalSuppliers;
+    private List<Product> lowStockProducts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var products = await ProductService.GetAllProductsAsync();
+        var brands = await BrandService.GetAllBrandsAsync();
+        var categories = await CategoryService.GetAllCategoriesAsync();
+        var suppliers = await SupplierService.GetAllSuppliersAsync();
+
+        totalProducts = products.Count();
+        totalBrands = brands.Count();
+        totalCategories = categories.Count();
+        totalSuppliers = suppliers.Count();
+
+        lowStockProducts = products
+            .Where(p => p.Stock <= 10)
+            .OrderBy(p => p.Stock)
+            .Take(5)
+            .ToList();
+    }
+}

@@ -1,11 +1,11 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using ProductManagement.Features.Data;
 using ProductManagement.Features.Data.Models;
 using ProductManagement.Features.Repositories.Interfaces;
 
 namespace ProductManagement.Features.Repositories.Implementations
 {
-    public class UserRepository : IGenericRepository<User>, IUserRepository
+    public class UserRepository : GenericRepository<User>, IUserRepository
     {
         public UserRepository(AppDbContext context) : base(context) { }
 

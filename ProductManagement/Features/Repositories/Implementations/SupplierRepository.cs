@@ -1,11 +1,11 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using ProductManagement.Features.Data;
 using ProductManagement.Features.Data.Models;
 using ProductManagement.Features.Repositories.Interfaces;
 
 namespace ProductManagement.Features.Repositories.Implementations
 {
-    public class SupplierRepository : IGenericRepository<Supplier>, ISupplierRepository
+    public class SupplierRepository : GenericRepository<Supplier>, ISupplierRepository
     {
         public SupplierRepository(AppDbContext context) : base(context) { }
 

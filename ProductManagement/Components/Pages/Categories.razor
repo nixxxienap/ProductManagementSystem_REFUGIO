@@ -1,0 +1,195 @@
+@page "/categories"
+@inject ICategoryService CategoryService
+
+<PageTitle>Categories</PageTitle>
+
+@if (!string.IsNullOrEmpty(alertMessage))
+{
+    <div class="alert @(alertIsSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show">
+        @alertMessage
+        <button type="button" class="btn-close" @onclick="() => alertMessage = string.Empty"></button>
+    </div>
+}
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="card-title mb-0 fw-bold">Categories</span>
+        <button class="btn btn-primary btn-sm" @onclick="OpenAddModal">+ Add Category</button>
+    </div>
+
+    <div class="card-body">
+        <div class="mb-3">
+            <input class="form-control" placeholder="Search categories..."
+                   @bind="searchTerm" @bind:event="oninput" @onkeyup="FilterCategories" />
+        </div>
+
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (pagedCategories.Any())
+                {
+                    @foreach (var category in pagedCategories)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@category.Name</td>
+                            <td class="text-muted">@category.Description</td>
+                            <td>
+                                <span class="badge @(category.IsActive ? "bg-success" : "bg-danger")">
+                                    @(category.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td class="text-muted">@category.CreatedAt.ToString("MMM d, yyyy")</td>
+                            <td>
+                                <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => OpenEditModal(category)">Edit</button>
+                                <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteCategory(category.Id)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr><td colspan="5" class="text-center text-muted">No categories found.</td></tr>
+                }
+            </tbody>
+        </table>
+
+        @if (totalPages > 1)
+        {
+            <nav>
+                <ul class="pagination justify-content-center">
+                    @for (int i = 1; i <= totalPages; i++)
+                    {
+                        var pageNum = i;
+                        <li class="page-item @(currentPage == pageNum ? "active" : "")">
+                            <button class="page-link" @onclick="() => GoToPage(pageNum)">@pageNum</button>
+                        </li>
+                    }
+                </ul>
+            </nav>
+        }
+    </div>
+</div>
+
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(isEditing ? "Edit Category" : "Add Category")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Category Name</label>
+                        <input class="form-control" @bind="formCategory.Name" placeholder="e.g. Electronics" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <input class="form-control" @bind="formCategory.Description" placeholder="Short description..." />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" @bind="formCategory.IsActive">
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveCategory">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Category> allCategories = new();
+    private List<Category> filtered = new();
+    private List<Category> pagedCategories = new();
+
+    private string searchTerm = string.Empty;
+    private int currentPage = 1;
+    private int pageSize = 8;
+    private int totalPages = 1;
+
+    private bool showModal = false;
+    private bool isEditing = false;
+    private Category formCategory = new();
+
+    private string alertMessage = string.Empty;
+    private bool alertIsSuccess = true;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        allCategories = (await CategoryService.GetAllCategoriesAsync()).ToList();
+        FilterCategories();
+    }
+
+    private void FilterCategories()
+    {
+        filtered = string.IsNullOrWhiteSpace(searchTerm)
+            ? allCategories
+            : allCategories.Where(c => c.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        totalPages = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)pageSize));
+        currentPage = Math.Min(currentPage, totalPages);
+        pagedCategories = filtered.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
+    }
+
+    private void GoToPage(int page) { currentPage = page; FilterCategories(); }
+
+    private void OpenAddModal()
+    {
+        formCategory = new Category { IsActive = true };
+        isEditing = false;
+        showModal = true;
+    }
+
+    private void OpenEditModal(Category category)
+    {
+        formCategory = new Category
+        {
+            Id = category.Id,
+            Name = category.Name,
+            Description = category.Description,
+            IsActive = category.IsActive,
+            CreatedAt = category.CreatedAt
+        };
+        isEditing = true;
+        showModal = true;
+    }
+
+    private async Task SaveCategory()
+    {
+        var result = isEditing
+            ? await CategoryService.UpdateCategoryAsync(formCategory)
+            : await CategoryService.CreateCategoryAsync(formCategory);
+
+        alertMessage = result.Message;
+        alertIsSuccess = result.Success;
+        if (result.Success) { CloseModal(); await LoadData(); }
+    }
+
+    private async Task DeleteCategory(int id)
+    {
+        var result = await CategoryService.DeleteCategoryAsync(id);
+        alertMessage = result.Message;
+        alertIsSuccess = result.Success;
+        if (result.Success) await LoadData();
+    }
+
+    private void CloseModal() => showModal = false;
+}

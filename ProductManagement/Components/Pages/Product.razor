@@ -1,0 +1,274 @@
+@page "/products"
+@using YourApp.Features.Data.Models
+@inject IProductService ProductService
+@inject IBrandService BrandService
+@inject ICategoryService CategoryService
+@inject ISupplierService SupplierService
+
+<PageTitle>Products</PageTitle>
+
+@if (!string.IsNullOrEmpty(alertMessage))
+{
+    <div class="alert @(alertIsSuccess ? "alert-success" : "alert-danger")">
+        @alertMessage
+    </div>
+}
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">All Products</span>
+        <button class="btn btn-primary btn-sm" @onclick="OpenAddModal">+ Add Product</button>
+    </div>
+
+    <div class="search-bar">
+        <svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="6.5" cy="6.5" r="4.5" />
+            <path d="m10.5 10.5 3 3" />
+        </svg>
+        <input class="search-input" placeholder="Search products..."
+               @bind="searchTerm" @bind:event="oninput" @onkeyup="FilterProducts" />
+    </div>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Brand</th>
+                <th>Category</th>
+                <th>Price</th>
+                <th>Stock</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var product in pagedProducts)
+            {
+                <tr>
+                    <td class="fw-500">@product.Name</td>
+                    <td>@product.Brand?.Name</td>
+                    <td>@product.Category?.Name</td>
+                    <td>?@product.Price.ToString("N2")</td>
+                    <td>@product.Stock</td>
+                    <td>
+                        <span class="badge @(product.IsActive ? "badge-success" : "badge-danger")">
+                            @(product.IsActive ? "Active" : "Inactive")
+                        </span>
+                    </td>
+                    <td>
+                        <div class="btn-actions">
+                            <button class="btn btn-sm" @onclick="() => OpenEditModal(product)">Edit</button>
+                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteProduct(product.Id)">Del</button>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="pagination">
+        @for (int i = 1; i <= totalPages; i++)
+        {
+            var pageNum = i;
+            <button class="page-btn @(currentPage == pageNum ? "active" : "")"
+                    @onclick="() => GoToPage(pageNum)">
+                @pageNum
+            </button>
+        }
+        @if (currentPage < totalPages)
+        {
+            <button class="page-btn" @onclick="() => GoToPage(currentPage + 1)">›</button>
+        }
+    </div>
+</div>
+
+@if (showModal)
+{
+    <div class="modal-overlay" @onclick="CloseModal">
+        <div class="modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span class="modal-title">@(isEditing ? "Edit Product" : "Add Product")</span>
+                <button class="modal-close" @onclick="CloseModal">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-grid">
+                    <div class="form-group full">
+                        <label class="form-label">Product Name</label>
+                        <input class="form-control" @bind="formProduct.Name" placeholder="e.g. Sony WH-1000XM5" />
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label">Description</label>
+                        <input class="form-control" @bind="formProduct.Description" placeholder="Short description..." />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Brand</label>
+                        <select class="form-control" @bind="formProduct.BrandId">
+                            <option value="0">-- Select Brand --</option>
+                            @foreach (var brand in brands)
+                            {
+                                <option value="@brand.Id">@brand.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Category</label>
+                        <select class="form-control" @bind="formProduct.CategoryId">
+                            <option value="0">-- Select Category --</option>
+                            @foreach (var category in categories)
+                            {
+                                <option value="@category.Id">@category.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Price (?)</label>
+                        <input class="form-control" type="number" @bind="formProduct.Price" placeholder="0.00" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Stock</label>
+                        <input class="form-control" type="number" @bind="formProduct.Stock" placeholder="0" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Supplier</label>
+                        <select class="form-control" @bind="formProduct.SupplierId">
+                            <option value="0">-- Select Supplier --</option>
+                            @foreach (var supplier in suppliers)
+                            {
+                                <option value="@supplier.Id">@supplier.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select class="form-control" @bind="formProduct.IsActive">
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" @onclick="CloseModal">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveProduct">Save Product</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Product> allProducts = new();
+    private List<Product> filtered = new();
+    private List<Product> pagedProducts = new();
+    private List<Brand> brands = new();
+    private List<Category> categories = new();
+    private List<Supplier> suppliers = new();
+
+    private string searchTerm = string.Empty;
+    private int currentPage = 1;
+    private int pageSize = 8;
+    private int totalPages = 1;
+
+    private bool showModal = false;
+    private bool isEditing = false;
+    private Product formProduct = new();
+
+    private string alertMessage = string.Empty;
+    private bool alertIsSuccess = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        allProducts = (await ProductService.GetAllProductsAsync()).ToList();
+        brands = (await BrandService.GetAllBrandsAsync()).ToList();
+        categories = (await CategoryService.GetAllCategoriesAsync()).ToList();
+        suppliers = (await SupplierService.GetAllSuppliersAsync()).ToList();
+        FilterProducts();
+    }
+
+    private void FilterProducts()
+    {
+        filtered = string.IsNullOrWhiteSpace(searchTerm)
+            ? allProducts
+            : allProducts.Where(p =>
+                p.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                (p.Brand?.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (p.Category?.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+              ).ToList();
+
+        totalPages = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)pageSize));
+        currentPage = Math.Min(currentPage, totalPages);
+        UpdatePage();
+    }
+
+    private void UpdatePage()
+    {
+        pagedProducts = filtered
+            .Skip((currentPage - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+    }
+
+    private void GoToPage(int page)
+    {
+        currentPage = page;
+        UpdatePage();
+    }
+
+    private void OpenAddModal()
+    {
+        formProduct = new Product { IsActive = true };
+        isEditing = false;
+        showModal = true;
+    }
+
+    private void OpenEditModal(Product product)
+    {
+        formProduct = new Product
+        {
+            Id = product.Id,
+            Name = product.Name,
+            Description = product.Description,
+            Price = product.Price,
+            Stock = product.Stock,
+            BrandId = product.BrandId,
+            CategoryId = product.CategoryId,
+            SupplierId = product.SupplierId,
+            IsActive = product.IsActive
+        };
+        isEditing = true;
+        showModal = true;
+    }
+
+    private async Task SaveProduct()
+    {
+        (bool success, string message) result;
+
+        if (isEditing)
+            result = await ProductService.UpdateProductAsync(formProduct);
+        else
+            result = await ProductService.CreateProductAsync(formProduct);
+
+        alertMessage = result.message;
+        alertIsSuccess = result.success;
+
+        if (result.success)
+        {
+            CloseModal();
+            await LoadData();
+        }
+    }
+
+    private async Task DeleteProduct(int id)
+    {
+        var result = await ProductService.DeleteProductAsync(id);
+        alertMessage = result.message;
+        alertIsSuccess = result.success;
+        if (result.success) await LoadData();
+    }
+
+    private void CloseModal() => showModal = false;
+}

@@ -1,10 +1,10 @@
+using Microsoft.EntityFrameworkCore;
 using ProductManagement.Components;
+using ProductManagement.Features.Data;
 using ProductManagement.Features.Repositories.Implementations;
 using ProductManagement.Features.Repositories.Interfaces;
 using ProductManagement.Features.Services.Implementations;
 using ProductManagement.Features.Services.Interfaces;
-using Stripe.Climate;
-using SupplierService = ProductManagement.Features.Services.Implementations.SupplierService;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,18 +12,24 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// Database
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseMySql(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection"))));
+
 // Repositories
-builder.Services.AddScoped(typeof(IGenericRepository<>));
-builder.Services.AddScoped<IProductRepository, IProductRepository>();
+builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IBrandRepository, BrandRepository>();
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<ISupplierRepository, SupplierRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 
 // Services
-builder.Services.AddScoped<ProductService, ProductService>();
 builder.Services.AddScoped<IBrandService, BrandService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
@@ -46,11 +52,3 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
-
-internal interface IProductRepository
-{
-}
-
-internal interface IGenericRepository<T>
-{
-}

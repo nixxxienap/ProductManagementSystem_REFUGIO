@@ -1,11 +1,11 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using ProductManagement.Features.Data;
 using ProductManagement.Features.Data.Models;
 using ProductManagement.Features.Repositories.Interfaces;
 
 namespace ProductManagement.Features.Repositories.Implementations
 {
-    public class CategoryRepository : IGenericRepository<Category>, ICategoryRepository
+    public class CategoryRepository : GenericRepository<Category>, ICategoryRepository
     {
         public CategoryRepository(AppDbContext context) : base(context) { }
 

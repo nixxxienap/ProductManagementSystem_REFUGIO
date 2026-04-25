@@ -1,0 +1,300 @@
+@page "/users"
+@using YourApp.Features.Data.Models
+@inject IUserService UserService
+
+<PageTitle>Users</PageTitle>
+
+@if (!string.IsNullOrEmpty(alertMessage))
+{
+    <div class="alert @(alertIsSuccess ? "alert-success" : "alert-danger")">
+        @alertMessage
+    </div>
+}
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Users</span>
+        <button class="btn btn-primary btn-sm" @onclick="OpenAddModal">+ Add User</button>
+    </div>
+
+    <div class="search-bar">
+        <svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="6.5" cy="6.5" r="4.5" />
+            <path d="m10.5 10.5 3 3" />
+        </svg>
+        <input class="search-input" placeholder="Search users..."
+               @bind="searchTerm" @bind:event="oninput" @onkeyup="FilterUsers" />
+    </div>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>User</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Last Login</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in pagedUsers)
+            {
+                <tr>
+                    <td>
+                        <div class="user-cell">
+                            <div class="avatar" style="background:@GetAvatarBg(user.Role);color:@GetAvatarColor(user.Role);">
+                                @GetInitials(user.FullName)
+                            </div>
+                            <span class="fw-500">@user.FullName</span>
+                        </div>
+                    </td>
+                    <td class="text-muted">@user.Email</td>
+                    <td><span class="badge @GetRoleBadge(user.Role)">@user.Role</span></td>
+                    <td><span class="badge @GetStatusBadge(user.Status)">@user.Status</span></td>
+                    <td class="text-muted">@(user.LastLoginAt.HasValue ? user.LastLoginAt.Value.ToString("MMM d, h:mm tt") : "Never")</td>
+                    <td>
+                        <div class="btn-actions">
+                            <button class="btn btn-sm" @onclick="() => OpenEditModal(user)">Edit</button>
+                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteUser(user.Id)">Del</button>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="pagination">
+        @for (int i = 1; i <= totalPages; i++)
+        {
+            var pageNum = i;
+            <button class="page-btn @(currentPage == pageNum ? "active" : "")"
+                    @onclick="() => GoToPage(pageNum)">
+                @pageNum
+            </button>
+        }
+    </div>
+</div>
+
+@if (showModal)
+{
+    <div class="modal-overlay" @onclick="CloseModal">
+        <div class="modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span class="modal-title">@(isEditing ? "Edit User" : "Add User")</span>
+                <button class="modal-close" @onclick="CloseModal">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-grid">
+                    <div class="form-group full">
+                        <label class="form-label">Full Name</label>
+                        <input class="form-control" @bind="formFullName" placeholder="e.g. Juan dela Cruz" />
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label">Email</label>
+                        <input class="form-control" type="email" @bind="formEmail" placeholder="email@example.com" />
+                    </div>
+                    @if (!isEditing)
+                    {
+                        <div class="form-group">
+                            <label class="form-label">Password</label>
+                            <input class="form-control" type="password" @bind="formPassword" placeholder="••••••••" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Confirm Password</label>
+                            <input class="form-control" type="password" @bind="formConfirmPassword" placeholder="••••••••" />
+                        </div>
+                    }
+                    <div class="form-group">
+                        <label class="form-label">Role</label>
+                        <select class="form-control" @bind="formRole">
+                            <option value="@UserRole.Admin">Admin</option>
+                            <option value="@UserRole.Manager">Manager</option>
+                            <option value="@UserRole.Staff">Staff</option>
+                            <option value="@UserRole.Viewer">Viewer</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select class="form-control" @bind="formStatus">
+                            <option value="@UserStatus.Active">Active</option>
+                            <option value="@UserStatus.Inactive">Inactive</option>
+                            <option value="@UserStatus.Suspended">Suspended</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone (optional)</label>
+                        <input class="form-control" @bind="formPhone" placeholder="09XXXXXXXXX" />
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" @onclick="CloseModal">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveUser">Save User</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<User> allUsers = new();
+    private List<User> filtered = new();
+    private List<User> pagedUsers = new();
+
+    private string searchTerm = string.Empty;
+    private int currentPage = 1;
+    private int pageSize = 8;
+    private int totalPages = 1;
+
+    private bool showModal = false;
+    private bool isEditing = false;
+    private int editUserId;
+
+    private string formFullName = string.Empty;
+    private string formEmail = string.Empty;
+    private string formPassword = string.Empty;
+    private string formConfirmPassword = string.Empty;
+    private string formPhone = string.Empty;
+    private UserRole formRole = UserRole.Staff;
+    private UserStatus formStatus = UserStatus.Active;
+
+    private string alertMessage = string.Empty;
+    private bool alertIsSuccess = true;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        allUsers = (await UserService.GetAllUsersAsync()).ToList();
+        FilterUsers();
+    }
+
+    private void FilterUsers()
+    {
+        filtered = string.IsNullOrWhiteSpace(searchTerm)
+            ? allUsers
+            : allUsers.Where(u =>
+                u.FullName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                u.Email.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
+              ).ToList();
+
+        totalPages = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)pageSize));
+        currentPage = Math.Min(currentPage, totalPages);
+        pagedUsers = filtered.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
+    }
+
+    private void GoToPage(int page) { currentPage = page; FilterUsers(); }
+
+    private void OpenAddModal()
+    {
+        formFullName = string.Empty;
+        formEmail = string.Empty;
+        formPassword = string.Empty;
+        formConfirmPassword = string.Empty;
+        formPhone = string.Empty;
+        formRole = UserRole.Staff;
+        formStatus = UserStatus.Active;
+        isEditing = false;
+        showModal = true;
+    }
+
+    private void OpenEditModal(User user)
+    {
+        editUserId = user.Id;
+        formFullName = user.FullName;
+        formEmail = user.Email;
+        formPhone = user.PhoneNumber ?? string.Empty;
+        formRole = user.Role;
+        formStatus = user.Status;
+        isEditing = true;
+        showModal = true;
+    }
+
+    private async Task SaveUser()
+    {
+        if (isEditing)
+        {
+            var existing = await UserService.GetUserByIdAsync(editUserId);
+            if (existing is null) return;
+
+            existing.FullName = formFullName;
+            existing.Email = formEmail;
+            existing.PhoneNumber = formPhone;
+            existing.Role = formRole;
+            existing.Status = formStatus;
+
+            var result = await UserService.UpdateUserAsync(existing);
+            alertMessage = result.Message;
+            alertIsSuccess = result.Success;
+        }
+        else
+        {
+            if (formPassword != formConfirmPassword)
+            {
+                alertMessage = "Passwords do not match.";
+                alertIsSuccess = false;
+                return;
+            }
+
+            var result = await UserService.RegisterAsync(formFullName, formEmail, formPassword, formRole);
+            alertMessage = result.Message;
+            alertIsSuccess = result.Success;
+        }
+
+        if (alertIsSuccess) { CloseModal(); await LoadData(); }
+    }
+
+    private async Task DeleteUser(int id)
+    {
+        var result = await UserService.DeleteUserAsync(id);
+        alertMessage = result.Message;
+        alertIsSuccess = result.Success;
+        if (result.Success) await LoadData();
+    }
+
+    private void CloseModal() => showModal = false;
+
+    private string GetInitials(string name)
+    {
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{parts[0][0]}{parts[^1][0]}".ToUpper()
+            : name.Length >= 2 ? name[..2].ToUpper() : name.ToUpper();
+    }
+
+    private string GetRoleBadge(UserRole role) => role switch
+    {
+        UserRole.Admin => "badge-info",
+        UserRole.Manager => "badge-warn",
+        UserRole.Staff => "badge-teal",
+        UserRole.Viewer => "badge-gray",
+        _ => "badge-gray"
+    };
+
+    private string GetStatusBadge(UserStatus status) => status switch
+    {
+        UserStatus.Active => "badge-success",
+        UserStatus.Inactive => "badge-gray",
+        UserStatus.Suspended => "badge-danger",
+        UserStatus.PendingVerification => "badge-warn",
+        _ => "badge-gray"
+    };
+
+    private string GetAvatarBg(UserRole role) => role switch
+    {
+        UserRole.Admin => "#eaf3de",
+        UserRole.Manager => "#e6f1fb",
+        UserRole.Staff => "#faeeda",
+        UserRole.Viewer => "#eeedfe",
+        _ => "#f1efe8"
+    };
+
+    private string GetAvatarColor(UserRole role) => role switch
+    {
+        UserRole.Admin => "#3b6d11",
+        UserRole.Manager => "#185fa5",
+        UserRole.Staff => "#854f0b",
+        UserRole.Viewer => "#534ab7",
+        _ => "#5f5e5a"
+    };
+}

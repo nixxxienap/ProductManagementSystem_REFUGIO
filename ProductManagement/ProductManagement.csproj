@@ -9,7 +9,6 @@
 
   <ItemGroup>
     <Folder Include="Features\Helpers\" />
-    <Folder Include="Migration\" />
   </ItemGroup>
 
   <ItemGroup>
